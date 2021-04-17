@@ -31,12 +31,18 @@ public class IasTokenAuthenticatorTest {
 
 	private final static HttpServletResponse HTTP_RESPONSE = Mockito.mock(HttpServletResponse.class);
 
-	private SapIdToken token;
+	private final SapIdToken token;
+	private final SapIdToken tokenWithCnf;
+	private final SapIdToken tokenInvalidCnf;
+	private final String x509;
 
 	private AbstractTokenAuthenticator cut;
 
 	public IasTokenAuthenticatorTest() throws IOException {
 		token = new SapIdToken(IOUtils.resourceToString("/iasOidcTokenRSA256.txt", UTF_8));
+		tokenWithCnf = new SapIdToken(IOUtils.resourceToString("/iasTokenWithCnfRSA256.txt", UTF_8));
+		tokenInvalidCnf = new SapIdToken(IOUtils.resourceToString("/iasTokenInvalidCnfRSA256.txt", UTF_8));
+		x509 = IOUtils.resourceToString("/cf-forwarded-client-cert.txt", UTF_8);
 	}
 
 	@Before
@@ -104,6 +110,40 @@ public class IasTokenAuthenticatorTest {
 		assertThat(response.getUnauthenticatedReason()).isEmpty();
 		assertThat(response.isAuthenticated()).isTrue();
 		assertThat(response.getToken()).isSameAs(SecurityContext.getToken());
+	}
+
+	@Test
+	public void validateRequest_validTokenWithCnf_noCertificate() {
+		HttpServletRequest httpRequest = createRequestWithToken(tokenWithCnf.getTokenValue());
+
+		TokenAuthenticationResult response = cut.validateRequest(httpRequest, HTTP_RESPONSE);
+
+		assertThat(response.getUnauthenticatedReason())
+				.contains("Error during token validation: Certificate validation failed");
+		assertThat(response.isAuthenticated()).isFalse();
+	}
+
+	@Test
+	public void validateRequest_validTokenInvalidCnf_withCertificate() {
+		HttpServletRequest httpRequest = createRequestWithToken(tokenInvalidCnf.getTokenValue());
+		when(httpRequest.getHeader("x-forwarded-client-cert")).thenReturn(x509);
+
+		TokenAuthenticationResult response = cut.validateRequest(httpRequest, HTTP_RESPONSE);
+
+		assertThat(response.getUnauthenticatedReason())
+				.contains("Error during token validation: Certificate validation failed");
+		assertThat(response.isAuthenticated()).isFalse();
+	}
+
+	@Test
+	public void validateRequest_validTokenWithCnf_withCertificate() {
+		HttpServletRequest httpRequest = createRequestWithToken(tokenWithCnf.getTokenValue());
+		when(httpRequest.getHeader("x-forwarded-client-cert")).thenReturn(x509);
+
+		TokenAuthenticationResult response = cut.validateRequest(httpRequest, HTTP_RESPONSE);
+
+		assertThat(response.getUnauthenticatedReason()).isEmpty();
+		assertThat(response.isAuthenticated()).isTrue();
 	}
 
 	@Test

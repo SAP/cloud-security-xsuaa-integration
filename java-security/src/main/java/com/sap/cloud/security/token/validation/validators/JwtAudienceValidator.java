@@ -97,11 +97,11 @@ public class JwtAudienceValidator implements Validator<Token> {
 			}
 		}
 
+		if (token.hasClaim(TokenClaims.AUTHORIZATION_PARTY)) {
+			audiences.add(token.getClientId());
+		}
+		// extract audience (app-id) from scopes
 		if (Service.XSUAA.equals(token.getService())) {
-			if (token.hasClaim(TokenClaims.AUTHORIZATION_PARTY)) {
-				audiences.add(token.getClientId());
-			}
-			// extract audience (app-id) from scopes
 			if (token.getAudiences().isEmpty()) {
 				for (String scope : token.getClaimAsStringList(TokenClaims.XSUAA.SCOPES)) {
 					if (scope.contains(".")) {

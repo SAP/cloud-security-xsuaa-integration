@@ -40,7 +40,7 @@ public class XsuaaSecurityFilter implements Filter {
 				sendUnauthenticatedResponse(response, authenticationResult.getUnauthenticatedReason());
 			}
 		} finally {
-			SecurityContext.clearToken();
+			SecurityContext.clear();
 		}
 	}
 

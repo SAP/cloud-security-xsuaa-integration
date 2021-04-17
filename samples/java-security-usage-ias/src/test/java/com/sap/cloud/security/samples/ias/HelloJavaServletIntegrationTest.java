@@ -11,12 +11,17 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.HttpClients;
-import org.junit.*;
+import org.assertj.core.util.Maps;
+import org.junit.After;
+import org.junit.ClassRule;
+import org.junit.Rule;
+import org.junit.Test;
+import uk.org.webcompere.systemstubs.rules.EnvironmentVariablesRule;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static com.sap.cloud.security.test.SecurityTestRule.*;
+import static com.sap.cloud.security.test.SecurityTestRule.getInstance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class HelloJavaServletIntegrationTest {
@@ -26,9 +31,12 @@ public class HelloJavaServletIntegrationTest {
 			.useApplicationServer()
 			.addApplicationServlet(HelloJavaServlet.class, HelloJavaServlet.ENDPOINT);
 
-	@After
+    @Rule
+    public EnvironmentVariablesRule environmentVariablesRule = new EnvironmentVariablesRule("X509_THUMBPRINT_CONFIRMATION_ACTIVE", "false");
+
+    @After
 	public void tearDown() {
-		SecurityContext.clearToken();
+		SecurityContext.clear();
 	}
 
 	@Test
@@ -48,8 +56,8 @@ public class HelloJavaServletIntegrationTest {
 	}
 
 	@Test
-	public void request_withValidToken() throws IOException {
-		Token token = rule.getPreconfiguredJwtGenerator()
+	public void request_withValidToken_X509Disabled() throws IOException {
+        Token token = rule.getPreconfiguredJwtGenerator()
 				.withClaimValue(TokenClaims.EMAIL, "john.doe@email.com")
 				.createToken();
 		HttpGet request = createGetRequest(token.getTokenValue());
@@ -59,6 +67,26 @@ public class HelloJavaServletIntegrationTest {
 			assertThat(responseBody).isEqualTo("You ('john.doe@email.com') are authenticated and can access the application.");
 		}
 	}
+
+    @Test
+    public void request_withValidToken_X509Enabled() throws Exception {
+        environmentVariablesRule.set("X509_THUMBPRINT_CONFIRMATION_ACTIVE", "true");
+        String x509 = IOUtils.resourceToString("/x509Base64.txt", StandardCharsets.US_ASCII);
+        String cnf = "fU-XoQlhMTpQsz9ArXl6zHIpMGuRO4ExLKdLRTc5VjM";
+
+        Token token = rule.getPreconfiguredJwtGenerator()
+                .withClaimValue(TokenClaims.CNF, Maps.newHashMap(TokenClaims.X509_THUMBPRINT, cnf))
+                .withClaimValue(TokenClaims.EMAIL, "john.doe@email.com")
+                .createToken();
+
+        HttpGet request = createGetRequest(token.getTokenValue());
+        request.setHeader("x-forwarded-client-cert", x509);
+        CloseableHttpResponse response = HttpClients.createDefault().execute(request);
+
+        String responseBody = IOUtils.toString(response.getEntity().getContent(), StandardCharsets.UTF_8);
+        assertThat(response.getStatusLine().getStatusCode()).isEqualTo(HttpStatus.SC_OK);
+        assertThat(responseBody).isEqualTo("You ('john.doe@email.com') are authenticated and can access the application.");
+    }
 
 	@Test
 	public void request_withInvalidToken_unauthenticated() throws IOException {

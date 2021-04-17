@@ -29,7 +29,7 @@ public abstract class AbstractTokenAuthenticator implements TokenAuthenticator {
 
 	private static final Logger logger = LoggerFactory.getLogger(AbstractTokenAuthenticator.class);
 	private final List<ValidationListener> validationListeners = new ArrayList<>();
-	private Validator<Token> tokenValidator;
+	Validator<Token> tokenValidator;
 	protected CloseableHttpClient httpClient;
 	protected OAuth2ServiceConfiguration serviceConfiguration;
 	private CacheConfiguration tokenKeyCacheConfiguration;
@@ -137,15 +137,19 @@ public abstract class AbstractTokenAuthenticator implements TokenAuthenticator {
 	protected abstract Token extractFromHeader(String authorizationHeader);
 
 	Validator<Token> getOrCreateTokenValidator() {
-		if (tokenValidator == null) {
-			JwtValidatorBuilder jwtValidatorBuilder = JwtValidatorBuilder.getInstance(getServiceConfiguration())
-					.withHttpClient(httpClient);
-			jwtValidatorBuilder.configureAnotherServiceInstance(getOtherServiceConfiguration());
-			Optional.ofNullable(tokenKeyCacheConfiguration).ifPresent(jwtValidatorBuilder::withCacheConfiguration);
-			validationListeners.forEach(jwtValidatorBuilder::withValidatorListener);
-			tokenValidator = jwtValidatorBuilder.build();
+		if (this.tokenValidator == null) {
+			this.tokenValidator = getJwtValidatorBuilder().build();
 		}
-		return tokenValidator;
+		return this.tokenValidator;
+	}
+
+	JwtValidatorBuilder getJwtValidatorBuilder() {
+		JwtValidatorBuilder jwtValidatorBuilder = JwtValidatorBuilder.getInstance(getServiceConfiguration())
+				.withHttpClient(httpClient);
+		jwtValidatorBuilder.configureAnotherServiceInstance(getOtherServiceConfiguration());
+		Optional.ofNullable(tokenKeyCacheConfiguration).ifPresent(jwtValidatorBuilder::withCacheConfiguration);
+		validationListeners.forEach(jwtValidatorBuilder::withValidatorListener);
+		return jwtValidatorBuilder;
 	}
 
 	TokenAuthenticationResult unauthenticated(String message) {

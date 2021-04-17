@@ -216,6 +216,28 @@ public class JwtGenerator {
 	}
 
 	/**
+	 * Sets the claims with the given names to the given string value. Note: for
+	 * overwriting client Id claim, "azp" claim value should be overwritten instead
+	 * of deprecated "cid"
+	 *
+	 * @param claimName
+	 *            the name of the claim to be set.
+	 * @param map
+	 *            map of key value pairs of claims to be set.
+	 * @return the builder object.
+	 * @throws JsonParsingException
+	 *             if the given object does not contain valid json.
+	 */
+	public JwtGenerator withClaimValue(String claimName, Map<String, String> map) {
+		try {
+			jsonPayload.put(claimName, map);
+		} catch (JSONException e) {
+			throw new JsonParsingException(e.getMessage());
+		}
+		return this;
+	}
+
+	/**
 	 * Sets the claim with the given name to the given string values. Note: for
 	 * overwriting client Id claim, "azp" claim value should be overwritten instead
 	 * of deprecated "cid"

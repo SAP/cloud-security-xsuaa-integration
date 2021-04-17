@@ -20,7 +20,7 @@ public class SecurityContextTest {
 
 	@Before
 	public void setUp() {
-		SecurityContext.clearToken();
+		SecurityContext.clear();
 	}
 
 	@Test
@@ -46,7 +46,7 @@ public class SecurityContextTest {
 	@Test
 	public void clear_removesToken() {
 		SecurityContext.setToken(TOKEN);
-		SecurityContext.clearToken();
+		SecurityContext.clear();
 
 		assertThat(SecurityContext.getToken()).isNull();
 	}
@@ -65,7 +65,7 @@ public class SecurityContextTest {
 			throws ExecutionException, InterruptedException {
 		SecurityContext.setToken(TOKEN);
 
-		executorService.submit(() -> SecurityContext.clearToken()).get(); // run and await other thread
+		executorService.submit(() -> SecurityContext.clear()).get(); // run and await other thread
 
 		assertThat(SecurityContext.getToken()).isEqualTo(TOKEN);
 	}

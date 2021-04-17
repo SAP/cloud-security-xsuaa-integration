@@ -12,6 +12,7 @@ public class CFConstants {
 	public static final String URL = "url";
 	public static final String CLIENT_ID = "clientid";
 	public static final String CLIENT_SECRET = "clientsecret";
+	public static final String CERTIFICATE = "certificate";
 
 	private CFConstants() {
 	}

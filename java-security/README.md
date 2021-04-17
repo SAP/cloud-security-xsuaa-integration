@@ -184,6 +184,20 @@ Steps to enable token exchange:
 
 The authenticator is used in the following [sample](/samples/java-security-usage).
 
+### X509 certificate thumbprint validation
+[IasTokenAuthenticator](src/main/java/com/sap/cloud/security/servlet/IasTokenAuthenticator.java) supports JWT Certificate Thumbprint Confirmation Method. See specification [here](https://tools.ietf.org/html/rfc8705#section-3.1). 
+This feature is enabled by default. It can be disabled by setting environment variable `X509_THUMBPRINT_CONFIRMATION_ACTIVE` to false.
+`Cnf` x509 thumbprint validation is performed in case audience contains multiple values. In case of single audience, thumbprint comparison is not performed and request is validated.
+
+#### Troubleshooting 
+In case of invalid response i.e 401 or 403 error codes, check application error logs for detailed messages. 
+
+Common reasons for failed validation:
+- invalid X509 certificate -> `CertificateException` is thrown when parsing of X509 certificate failed
+- X509 certificate is missing from the `SecurityContext`
+- `cnf` claim is missing from incoming request 
+- audience validation failed in case of single audience `aud`
+
 ## Test Utilities
 You can find the JUnit test utilities documented [here](/java-security-test).
 

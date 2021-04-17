@@ -41,7 +41,7 @@ public class JavaSecurityContextHolderStrategy implements SecurityContextHolderS
 
 	public void clearContext() {
 		contextHolder.remove();
-		com.sap.cloud.security.token.SecurityContext.clearToken();
+		com.sap.cloud.security.token.SecurityContext.clear();
 	}
 
 	public SecurityContext getContext() {

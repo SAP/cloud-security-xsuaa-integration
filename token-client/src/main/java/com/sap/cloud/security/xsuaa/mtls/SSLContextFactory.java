@@ -29,9 +29,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Creates a SSLContext (without Bouncy Castle crypto lib).
  *
- * @deprecated This class might be removed again in the future
  */
-@Deprecated
 public class SSLContextFactory {
 	private static final char[] noPassword = "".toCharArray();
 	private static final SSLContextFactory instance = new SSLContextFactory();
