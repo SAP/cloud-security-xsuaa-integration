@@ -7,17 +7,16 @@ package com.sap.cloud.security.token.validation.validators;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 class JsonWebKeySet {
 
-	private Set<JsonWebKey> jsonWebKeys;
-
-	JsonWebKeySet() {
-		jsonWebKeys = new HashSet<>();
-	}
+	private final Set<JsonWebKey> jsonWebKeys = new HashSet<>();
+	private Map<String, Boolean> zoneIdAccepted = new HashMap<>();
 
 	@Nullable
 	public JsonWebKey getKeyByAlgorithmAndId(JwtSignatureAlgorithm keyAlgorithm, String keyId) {
@@ -43,5 +42,18 @@ class JsonWebKeySet {
 		return jsonWebKeys.stream()
 				.filter(jwk -> algorithm.equals(jwk.getKeyAlgorithm()))
 				.filter(jwk -> kid.equals(jwk.getId()));
+	}
+
+	public boolean containsZoneId(String zoneId) {
+		return zoneIdAccepted.containsKey(zoneId);
+	}
+
+	public boolean isZoneIdAccepted(String zoneId) {
+		return zoneIdAccepted.get(zoneId);
+	}
+
+	public JsonWebKeySet withZoneId(String zoneId, boolean isAccepted) {
+		zoneIdAccepted.put(zoneId, isAccepted);
+		return this;
 	}
 }

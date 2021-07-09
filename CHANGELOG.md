@@ -1,6 +1,10 @@
 # Change Log
 All notable changes to this project will be documented in this file.
 
+## 2.10.2 and 0.3.2 [BETA]
+- [java-security] [spring-security]
+  -  Improves JWKS cache handling for OIDC token validation. This is especially relevant when using a shared IAS tenant.
+
 ## 2.10.1 and 0.3.1 [BETA]
 #### Dependency upgrades
 - org.springframework.boot:spring-boot 2.5.0 --> 2.5.2

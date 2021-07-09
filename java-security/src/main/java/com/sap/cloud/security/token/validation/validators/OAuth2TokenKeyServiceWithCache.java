@@ -16,7 +16,6 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.spec.InvalidKeySpecException;
 import java.time.Duration;
-import java.util.Set;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
@@ -37,8 +36,8 @@ import org.slf4j.LoggerFactory;
 class OAuth2TokenKeyServiceWithCache implements Cacheable {
 	private static final Logger LOGGER = LoggerFactory.getLogger(OAuth2TokenKeyServiceWithCache.class);
 
-	private OAuth2TokenKeyService tokenKeyService; // access via getter
-	private Cache<String, PublicKey> cache; // access via getter
+	private OAuth2TokenKeyService tokenKeyService;
+	private Cache<String, JsonWebKeySet> cache;
 	private CacheConfiguration cacheConfiguration = TokenKeyCacheConfiguration.defaultConfiguration();
 	private Ticker cacheTicker;
 
@@ -146,20 +145,12 @@ class OAuth2TokenKeyServiceWithCache implements Cacheable {
 	 *            the Token Key Uri (jwks) of the Access Token (can be tenant
 	 *            specific).
 	 * @return a PublicKey
-	 * @throws OAuth2ServiceException
-	 *             in case the call to the jwks endpoint of the identity service
-	 *             failed.
-	 * @throws InvalidKeySpecException
-	 *             in case the PublicKey generation for the json web key failed.
-	 * @throws NoSuchAlgorithmException
-	 *             in case the algorithm of the json web key is not supported.
 	 * @deprecated in favor of
 	 *             {@link #getPublicKey(JwtSignatureAlgorithm, String, URI, String)}
 	 */
 	@Nullable
 	@Deprecated
-	public PublicKey getPublicKey(JwtSignatureAlgorithm keyAlgorithm, String keyId, URI keyUri)
-			throws OAuth2ServiceException, InvalidKeySpecException, NoSuchAlgorithmException {
+	public PublicKey getPublicKey(JwtSignatureAlgorithm keyAlgorithm, String keyId, URI keyUri) {
 		throw new UnsupportedOperationException("use getPublicKey(keyAlgorithm, keyId, keyUri, zoneId) instead");
 	}
 
@@ -193,13 +184,20 @@ class OAuth2TokenKeyServiceWithCache implements Cacheable {
 		assertHasText(keyId, "keyId must not be null.");
 		assertNotNull(keyUri, "keyUrl must not be null.");
 
-		String cacheKey = getUniqueCacheKey(keyAlgorithm, keyId, keyUri, zoneId);
-
-		PublicKey publicKey = getCache().getIfPresent(cacheKey);
-		if (publicKey == null) {
-			retrieveTokenKeysAndFillCache(keyUri, zoneId);
+		JsonWebKeySet keySet = getCache().getIfPresent(keyUri.toString());
+		if (keySet == null || !keySet.containsZoneId(zoneId)) {
+			keySet = retrieveTokenKeysAndUpdateCache(keyUri, zoneId, keySet); // creates and updates cache entries
 		}
-		return getCache().getIfPresent(cacheKey);
+		if (!keySet.isZoneIdAccepted(zoneId)) {
+			throw new OAuth2ServiceException("Invalid zone_uuid provided.");
+		}
+		for (JsonWebKey jwk : keySet.getAll()) {
+			if (jwk.getId().equals(keyId) && jwk.getKeyAlgorithm().equals(keyAlgorithm)) {
+				return jwk.getPublicKey();
+			}
+		}
+		LOGGER.warn("No matching Key found in cache");
+		return null;
 	}
 
 	private TokenKeyCacheConfiguration getCheckedConfiguration(CacheConfiguration cacheConfiguration) {
@@ -220,23 +218,38 @@ class OAuth2TokenKeyServiceWithCache implements Cacheable {
 					duration.getSeconds(), currentDuration.getSeconds());
 			duration = currentDuration;
 		}
+		if (duration.getSeconds() > 900) {
+			Duration currentDuration = getCacheConfiguration().getCacheDuration();
+			LOGGER.error(
+					"Tried to set cache duration to {} seconds but the cache duration must be maximum 900 seconds."
+							+ " Cache duration will remain at: {} seconds",
+					duration.getSeconds(), currentDuration.getSeconds());
+			duration = currentDuration;
+		}
 		return TokenKeyCacheConfiguration.getInstance(duration, size, cacheConfiguration.isCacheStatisticsEnabled());
 	}
 
-	private void retrieveTokenKeysAndFillCache(URI jwksUri, String zoneId)
-			throws OAuth2ServiceException, InvalidKeySpecException, NoSuchAlgorithmException {
-		JsonWebKeySet keySet = JsonWebKeySetFactory
-				.createFromJson(getTokenKeyService().retrieveTokenKeys(jwksUri, zoneId));
-		if (keySet == null) {
-			return;
+	private JsonWebKeySet retrieveTokenKeysAndUpdateCache(URI jwksUri, String zoneId,
+			@Nullable JsonWebKeySet keySetCached)
+			throws OAuth2ServiceException {
+		String jwksJson;
+		try {
+			jwksJson = getTokenKeyService().retrieveTokenKeys(jwksUri, zoneId);
+		} catch (OAuth2ServiceException e) {
+			if (keySetCached != null) {
+				keySetCached.withZoneId(zoneId, false);
+			}
+			throw e;
 		}
-		Set<JsonWebKey> jwks = keySet.getAll();
-		for (JsonWebKey jwk : jwks) {
-			getCache().put(getUniqueCacheKey(jwk.getKeyAlgorithm(), jwk.getId(), jwksUri, zoneId), jwk.getPublicKey());
+		if (keySetCached != null) {
+			return keySetCached.withZoneId(zoneId, true);
 		}
+		JsonWebKeySet keySet = JsonWebKeySetFactory.createFromJson(jwksJson).withZoneId(zoneId, true);
+		getCache().put(jwksUri.toString(), keySet);
+		return keySet;
 	}
 
-	private Cache<String, PublicKey> getCache() {
+	private Cache<String, JsonWebKeySet> getCache() {
 		if (cache == null) {
 			Caffeine<Object, Object> cacheBuilder = Caffeine.newBuilder()
 					.ticker(cacheTicker)
@@ -273,11 +286,6 @@ class OAuth2TokenKeyServiceWithCache implements Cacheable {
 	@Override
 	public Object getCacheStatistics() {
 		return getCacheConfiguration().isCacheStatisticsEnabled() ? getCache().stats() : null;
-	}
-
-	public static String getUniqueCacheKey(JwtSignatureAlgorithm keyAlgorithm, String keyId, URI jwksUri,
-			String zoneId) {
-		return jwksUri + String.valueOf(JsonWebKeyImpl.calculateUniqueId(keyAlgorithm, keyId)) + zoneId;
 	}
 
 }

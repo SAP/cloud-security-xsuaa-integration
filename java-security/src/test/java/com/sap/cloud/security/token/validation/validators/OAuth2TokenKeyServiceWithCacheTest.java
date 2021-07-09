@@ -56,7 +56,7 @@ public class OAuth2TokenKeyServiceWithCacheTest {
 
 	@Test
 	public void changeCacheConfiguration() {
-		cut = cut.withCacheSize(1234).withCacheTime(678);
+		cut = cut.withCacheConfiguration(TokenKeyCacheConfiguration.getInstance(Duration.ofSeconds(678), 1234, false));
 
 		assertThat(cut.getCacheConfiguration().getCacheSize()).isEqualTo(1234);
 		assertThat(cut.getCacheConfiguration().getCacheDuration()).isEqualTo(Duration.ofSeconds(678));
@@ -64,13 +64,21 @@ public class OAuth2TokenKeyServiceWithCacheTest {
 
 	@Test
 	public void changeCacheConfiguration_valuesTooLow_leftUnchanged() {
-
 		Duration oldCacheDuration = cut.getCacheConfiguration().getCacheDuration();
 		int oldCacheSize = cut.getCacheConfiguration().getCacheSize();
 
-		cut = cut.withCacheSize(1).withCacheTime(1);
+		cut = cut.withCacheConfiguration(TokenKeyCacheConfiguration.getInstance(Duration.ofSeconds(1), 1, false));
 
 		assertThat(cut.getCacheConfiguration().getCacheSize()).isEqualTo(oldCacheSize);
+		assertThat(cut.getCacheConfiguration().getCacheDuration()).isEqualTo(oldCacheDuration);
+	}
+
+	@Test
+	public void changeCacheConfiguration_tooLongDuration_leftUnchanged() {
+		Duration oldCacheDuration = cut.getCacheConfiguration().getCacheDuration();
+
+		cut = cut.withCacheConfiguration(TokenKeyCacheConfiguration.getInstance(Duration.ofMinutes(16), 601, false));
+
 		assertThat(cut.getCacheConfiguration().getCacheDuration()).isEqualTo(oldCacheDuration);
 	}
 
@@ -154,7 +162,35 @@ public class OAuth2TokenKeyServiceWithCacheTest {
 		cut.getPublicKey(JwtSignatureAlgorithm.RS256, "key-id-0", TOKEN_KEYS_URI, ZONE_ID);
 		cut.getPublicKey(JwtSignatureAlgorithm.RS256, "not-seen-yet", TOKEN_KEYS_URI, ZONE_ID);
 
-		verify(tokenKeyServiceMock, times(2)).retrieveTokenKeys(any(), eq(ZONE_ID));
+		verify(tokenKeyServiceMock, times(1)).retrieveTokenKeys(any(), eq(ZONE_ID));
+	}
+
+	@Test
+	public void retrieveTokenKeysForNewZoneId()
+			throws OAuth2ServiceException, InvalidKeySpecException, NoSuchAlgorithmException {
+		cut.getPublicKey(JwtSignatureAlgorithm.RS256, "key-id-0", TOKEN_KEYS_URI, ZONE_ID);
+		cut.getPublicKey(JwtSignatureAlgorithm.RS256, "key-id-0", TOKEN_KEYS_URI, ZONE_ID + "-2");
+
+		verify(tokenKeyServiceMock, times(2)).retrieveTokenKeys(any(), any());
+		verify(tokenKeyServiceMock, times(1)).retrieveTokenKeys(any(), eq(ZONE_ID));
+		verify(tokenKeyServiceMock, times(1)).retrieveTokenKeys(any(), eq(ZONE_ID + "-2"));
+	}
+
+	@Test
+	public void retrieveTokenKeysForAnotherInvalidZoneId()
+			throws OAuth2ServiceException, InvalidKeySpecException, NoSuchAlgorithmException {
+		when(tokenKeyServiceMock.retrieveTokenKeys(any(), eq("invalid-zone")))
+				.thenThrow(new OAuth2ServiceException("Invalid zone_uuid provided"));
+		cut.getPublicKey(JwtSignatureAlgorithm.RS256, "key-id-0", TOKEN_KEYS_URI, ZONE_ID);
+
+		assertThatThrownBy(() -> {
+			cut.getPublicKey(JwtSignatureAlgorithm.RS256, "key-id-0", TOKEN_KEYS_URI, "invalid-zone");
+		}).isInstanceOf(OAuth2ServiceException.class).hasMessageStartingWith("Invalid");
+		assertThatThrownBy(() -> {
+			cut.getPublicKey(JwtSignatureAlgorithm.RS256, "key-id-0", TOKEN_KEYS_URI, "invalid-zone");
+		}).isInstanceOf(OAuth2ServiceException.class).hasMessageStartingWith("Invalid");
+
+		verify(tokenKeyServiceMock, times(1)).retrieveTokenKeys(any(), eq("invalid-zone"));
 	}
 
 	@Test
