@@ -13,6 +13,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Objects;
 import java.util.Optional;
 
 public class UriUtil {
@@ -72,8 +73,11 @@ public class UriUtil {
 	public static URI expandPath(URI baseUri, String pathToAppend) {
 		try {
 			String newPath = baseUri.getPath() + pathToAppend;
+			if(Objects.nonNull(baseUri.getQuery()) || Objects.nonNull(baseUri.getFragment())) {
+				logger.warn("As of version 2.8.0 queries {} and fragments {} are ignored.", baseUri.getQuery(), baseUri.getFragment());
+			}
 			return new URI(baseUri.getScheme(), baseUri.getUserInfo(), baseUri.getHost(), baseUri.getPort(),
-					replaceDoubleSlashes(newPath), baseUri.getQuery(), baseUri.getFragment());
+					replaceDoubleSlashes(newPath), null, null);
 		} catch (URISyntaxException e) {
 			throw new IllegalStateException(e);
 		}
