@@ -119,6 +119,11 @@ public abstract class AbstractToken implements Token {
 	public Set<String> getAudiences() {
 		Set<String> audiences = new LinkedHashSet<>();
 		audiences.addAll(getClaimAsStringList(TokenClaims.AUDIENCE));
+		if (audiences.isEmpty()) {
+			if (hasClaim(AUTHORIZATION_PARTY)) {
+				audiences.add(getClaimAsString(AUTHORIZATION_PARTY));
+			}
+		}
 		return audiences;
 	}
 

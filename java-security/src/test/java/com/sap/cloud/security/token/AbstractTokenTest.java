@@ -9,6 +9,7 @@ import com.sap.cloud.security.config.Service;
 import com.sap.cloud.security.json.JsonObject;
 import com.sap.cloud.security.json.JsonParsingException;
 import org.apache.commons.io.IOUtils;
+import org.assertj.core.util.Lists;
 import org.assertj.core.util.Sets;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,7 +22,9 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -190,6 +193,32 @@ public class AbstractTokenTest {
 		} else {
 			assertThat(token.getClientId()).isEqualTo(expectedClientId);
 		}
+	}
+
+	@ParameterizedTest
+	@MethodSource("audienceTestArguments")
+	public void getAudiencesTest(String azp, List<String> aud, Set<String> expectedAudiences,
+			boolean hasAzpClaim) throws InvalidTokenException {
+		AbstractToken token = Mockito.mock(AbstractToken.class);
+		when(token.hasClaim(AUTHORIZATION_PARTY)).thenReturn(hasAzpClaim);
+		when(token.getClaimAsStringList(TokenClaims.AUDIENCE)).thenReturn(aud);
+		when(token.getClaimAsString(AUTHORIZATION_PARTY)).thenReturn(azp);
+		when(token.getAudiences()).thenCallRealMethod();
+
+		assertThat(token.getAudiences()).isEqualTo(expectedAudiences);
+	}
+
+	private static Stream<Arguments> audienceTestArguments() {
+		return Stream.of(
+				Arguments.of("azp", Lists.newArrayList("aud1", "aud2"), Sets.newLinkedHashSet("aud1", "aud2"), true),
+				Arguments.of("azp", Lists.newArrayList("aud"), Sets.newLinkedHashSet("aud"), true),
+				Arguments.of("azp", Lists.newArrayList(), Sets.newLinkedHashSet("azp"), true),
+				Arguments.of("", Arrays.asList("aud1", "aud2"), Sets.newLinkedHashSet("aud1", "aud2"), true),
+				Arguments.of("", Arrays.asList("aud"), Sets.newLinkedHashSet("aud"), true),
+				Arguments.of("", Arrays.asList(), Sets.newLinkedHashSet(""), true),
+				Arguments.of(null, Arrays.asList("aud"), Sets.newLinkedHashSet("aud"), false),
+				Arguments.of(null, Arrays.asList("aud1", "aud2"), Sets.newLinkedHashSet("aud1", "aud2"), false),
+				Arguments.of(null, Arrays.asList(), Sets.newLinkedHashSet(), false));
 	}
 
 	private static Stream<Arguments> clientIdTestArguments() {
